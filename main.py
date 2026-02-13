@@ -1,9 +1,11 @@
 """
 Love Backend Application Entry Point.
 """
+import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 from app.core.config import settings
 from app.core.database import engine
@@ -42,12 +44,15 @@ async def lifespan(app: FastAPI):
         # Auto-create tables in debug mode (use Alembic migrations in production)
         if settings.DEBUG:
             from app.core.database import Base
-            from app.model import User
+            from app.model import User, Contact, Postcard
             Base.metadata.create_all(bind=engine)
             logger.info("Database tables created (DEBUG mode)")
     except Exception as e:
         logger.error(f"Database connection failed: {e}")
-    
+
+    # Ensure upload directory exists for postcard images
+    os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
+
     yield
     
     logger.info("Shutting down...")
@@ -74,6 +79,10 @@ app.add_middleware(
 
 # Routes
 app.include_router(api_router)
+
+# Serve uploaded postcard images at /uploads/... (directory must exist before mount)
+os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=settings.UPLOAD_DIR), name="uploads")
 
 
 @app.get("/health")

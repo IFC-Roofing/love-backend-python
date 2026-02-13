@@ -54,19 +54,29 @@ class AuthService:
             raise InvalidCredentials(message=e.response['Error']['Message'])
 
     def login(self, login_data: UserLogin) -> LoginResponse:
-        """Authenticate user via Cognito, create session, return tokens."""
+        """Authenticate user via Cognito; if not in local DB, create user so we have a copy."""
         try:
-            # Authenticate with Cognito
+            # Authenticate with Cognito first
             tokens = self.cognito.initiate_auth(
                 email=login_data.email,
                 password=login_data.password
             )
-            
-            # Get local user record
+
+            # Get or create local user (replicate from Cognito if missing)
             user = user_crud.get_by_email(self.db, login_data.email)
             if not user:
-                raise InvalidCredentials(message="User not found in local database")
-            
+                # Cognito succeeded but user not in our DB – create from Cognito identity
+                cognito_user = self.cognito.get_user(tokens['access_token'])
+                cognito_username = cognito_user['username']
+                # Avoid duplicate if another request created the user
+                user = user_crud.get_by_field(self.db, "cognito_username", cognito_username)
+                if not user:
+                    user = user_crud.create_from_dict(self.db, obj_in={
+                        "email": login_data.email,
+                        "cognito_username": cognito_username,
+                    })
+                    logger.info(f"Created local user from Cognito: {user.email}")
+
             # Store IdToken in session with user data
             id_token = tokens['id_token']
             user_data = {
@@ -82,9 +92,14 @@ class AuthService:
             return LoginResponse(
                 message="Login successful",
                 access_token=id_token,  # Return IdToken as access_token
-                user=UserInfo(id=str(user.id), email=user.email, is_active=user.is_active)
+                user=UserInfo(
+                    id=str(user.id),
+                    email=user.email,
+                    is_active=user.is_active,
+                    profile_image_url=getattr(user, "profile_image_url", None),
+                ),
             )
-            
+
         except ClientError as e:
             error_code = e.response['Error']['Code']
             if error_code in ['NotAuthorizedException', 'UserNotFoundException']:

@@ -29,10 +29,25 @@ class Settings(BaseSettings):
     REDIS_DB: int = 0
     SESSION_TTL: int = 86400  # 24 hours in seconds
 
+    # S3 (when set, postcards and profile images are stored in S3)
+    S3_BUCKET_NAME: Optional[str] = None
+    S3_REGION: Optional[str] = None  # defaults to AWS_REGION
+
     # Optional
     DEBUG: bool = False
     PROJECT_NAME: str = "Love Backend"
     CORS_ORIGINS: List[str] = ["http://localhost:3000"]
+
+    # Local uploads fallback when S3_BUCKET_NAME is not set
+    UPLOAD_DIR: str = "uploads"
+
+    @property
+    def use_s3(self) -> bool:
+        return bool(self.S3_BUCKET_NAME)
+
+    @property
+    def s3_region(self) -> str:
+        return self.S3_REGION or self.AWS_REGION
 
     class Config:
         env_file = ".env"
@@ -46,14 +61,16 @@ settings = Settings()
 if not settings.DB_HOST:
     from app.aws.secrets import get_secret
 
-    _db_secret = get_secret('love-backend/db', region_name=settings.AWS_REGION)
-    settings.DB_HOST = _db_secret['host']
-    settings.DB_PORT = int(_db_secret.get('port', 5432))
-    settings.DB_NAME = _db_secret['database']
-    settings.DB_USER = _db_secret['username']
-    settings.DB_PASS = _db_secret['password']
+    _db_secret = get_secret("love-backend/db", region_name=settings.AWS_REGION)
+    settings.DB_HOST = _db_secret["host"]
+    settings.DB_PORT = int(_db_secret.get("port", 5432))
+    settings.DB_NAME = _db_secret["database"]
+    settings.DB_USER = _db_secret["username"]
+    settings.DB_PASS = _db_secret["password"]
 
-    _cognito_secret = get_secret('love-backend/cognito', region_name=settings.COGNITO_REGION)
-    settings.COGNITO_USER_POOL_ID = _cognito_secret['user_pool_id']
-    settings.COGNITO_CLIENT_ID = _cognito_secret['client_id']
-    settings.COGNITO_CLIENT_SECRET = _cognito_secret.get('client_secret')
+    _cognito_secret = get_secret("love-backend/cognito", region_name=settings.COGNITO_REGION)
+    settings.COGNITO_USER_POOL_ID = _cognito_secret["user_pool_id"]
+    settings.COGNITO_CLIENT_ID = _cognito_secret["client_id"]
+    settings.COGNITO_CLIENT_SECRET = _cognito_secret.get("client_secret")
+# When DB_HOST is set (e.g. Docker with .env.docker), Cognito must be set in env:
+# COGNITO_USER_POOL_ID, COGNITO_CLIENT_ID, COGNITO_CLIENT_SECRET in .env.docker

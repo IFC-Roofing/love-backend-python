@@ -24,8 +24,9 @@ class UserUpdate(BaseModel):
 class UserResponse(UserBase):
     id: uuid.UUID
     is_active: bool
+    profile_image_url: Optional[str] = None
     created_at: datetime
     updated_at: datetime
-    
+
     class Config:
         from_attributes = True
