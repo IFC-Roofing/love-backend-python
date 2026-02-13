@@ -48,92 +48,92 @@ jobs:
           echo "message=$COMMIT_MESSAGE" >> $GITHUB_OUTPUT
           echo "author=$COMMIT_AUTHOR" >> $GITHUB_OUTPUT
 
-      # - name: Notify Slack on Success
-      #   if: success()
-      #   run: |
-      #     curl -X POST -H 'Content-type: application/json' \
-      #     --data @- $SLACK_WEBHOOK_URL <<EOF
-      #     {
-      #       "blocks": [
-      #         {
-      #           "type": "section",
-      #           "text": {
-      #             "type": "mrkdwn",
-      #             "text": "✅ *Love Server* build and checks succeeded"
-      #           }
-      #         },
-      #         {
-      #           "type": "context",
-      #           "elements": [
-      #             {
-      #               "type": "mrkdwn",
-      #               "text": "*${{ steps.commit-info.outputs.hash }}* ${{ steps.commit-info.outputs.message }} — ${{ steps.commit-info.outputs.author }}"
-      #             }
-      #           ]
-      #         },
-      #         {
-      #           "type": "actions",
-      #           "elements": [
-      #             {
-      #               "type": "button",
-      #               "text": { "type": "plain_text", "text": "View Build" },
-      #               "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
-      #               "style": "primary"
-      #             },
-      #             {
-      #               "type": "button",
-      #               "text": { "type": "plain_text", "text": "View Commit" },
-      #               "url": "${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}"
-      #             }
-      #           ]
-      #         }
-      #       ]
-      #     }
-      #     EOF
-      #   env:
-      #     SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+      - name: Notify Slack on Success
+        if: success()
+        run: |
+          curl -X POST -H 'Content-type: application/json' \
+          --data @- $SLACK_WEBHOOK_URL <<EOF
+          {
+            "blocks": [
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "✅ *Love Server* build and checks succeeded"
+                }
+              },
+              {
+                "type": "context",
+                "elements": [
+                  {
+                    "type": "mrkdwn",
+                    "text": "*${{ steps.commit-info.outputs.hash }}* ${{ steps.commit-info.outputs.message }} — ${{ steps.commit-info.outputs.author }}"
+                  }
+                ]
+              },
+              {
+                "type": "actions",
+                "elements": [
+                  {
+                    "type": "button",
+                    "text": { "type": "plain_text", "text": "View Build" },
+                    "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+                    "style": "primary"
+                  },
+                  {
+                    "type": "button",
+                    "text": { "type": "plain_text", "text": "View Commit" },
+                    "url": "${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}"
+                  }
+                ]
+              }
+            ]
+          }
+          EOF
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
 
-      # - name: Notify Slack on Failure
-      #   if: failure()
-      #   run: |
-      #     curl -X POST -H 'Content-type: application/json' \
-      #     --data @- $SLACK_WEBHOOK_URL <<EOF
-      #     {
-      #       "blocks": [
-      #         {
-      #           "type": "section",
-      #           "text": {
-      #             "type": "mrkdwn",
-      #             "text": "❌ *Backend* build or checks failed"
-      #           }
-      #         },
-      #         {
-      #           "type": "context",
-      #           "elements": [
-      #             {
-      #               "type": "mrkdwn",
-      #               "text": "*${{ steps.commit-info.outputs.hash }}* ${{ steps.commit-info.outputs.message }} — ${{ steps.commit-info.outputs.author }}"
-      #             }
-      #           ]
-      #         },
-      #         {
-      #           "type": "actions",
-      #           "elements": [
-      #             {
-      #               "type": "button",
-      #               "text": { "type": "plain_text", "text": "View Build" },
-      #               "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
-      #               "style": "danger"
-      #             },
-      #             {
-      #               "type": "button",
-      #               "text": { "type": "plain_text", "text": "View Commit" },
-      #               "url": "${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}"
-      #             }
-      #           ]
-      #         }
-      #       ]
-      #     }
-      #     EOF
-      #   env:
-      #     SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+      - name: Notify Slack on Failure
+        if: failure()
+        run: |
+          curl -X POST -H 'Content-type: application/json' \
+          --data @- $SLACK_WEBHOOK_URL <<EOF
+          {
+            "blocks": [
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "❌ *Backend* build or checks failed"
+                }
+              },
+              {
+                "type": "context",
+                "elements": [
+                  {
+                    "type": "mrkdwn",
+                    "text": "*${{ steps.commit-info.outputs.hash }}* ${{ steps.commit-info.outputs.message }} — ${{ steps.commit-info.outputs.author }}"
+                  }
+                ]
+              },
+              {
+                "type": "actions",
+                "elements": [
+                  {
+                    "type": "button",
+                    "text": { "type": "plain_text", "text": "View Build" },
+                    "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+                    "style": "danger"
+                  },
+                  {
+                    "type": "button",
+                    "text": { "type": "plain_text", "text": "View Commit" },
+                    "url": "${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}"
+                  }
+                ]
+              }
+            ]
+          }
+          EOF
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
