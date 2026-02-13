@@ -39,7 +39,7 @@ jobs:
                   type: "section",
                   text: {
                     type: "mrkdwn",
-                    text: (":git-commit: *Love Backend* — Commit to `" + $branch + "`")
+                    text: (":arrow_right: *Love Backend* — Commit to `" + $branch + "`")
                   }
                 },
                 {
