@@ -82,7 +82,7 @@ async def health():
 
 @app.get("/")
 async def root():
-    return {"message": "Welcome to the Love Backend API!"}
+    return {"message": "Welcome to the Love Backend API - CLUSTERING!"}
 
 
 if __name__ == "__main__":
