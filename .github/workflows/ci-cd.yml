@@ -59,7 +59,7 @@ jobs:
                 "type": "section",
                 "text": {
                   "type": "mrkdwn",
-                  "text": "✅ *Love Backend* build and checks succeeded"
+                  "text": "✅ *Love Server* build and checks succeeded"
                 }
               },
               {
