@@ -80,13 +80,13 @@ jobs:
         run: |
           if [ "$ACTION" = "opened" ]; then
             echo "label=PR Opened" >> "$GITHUB_OUTPUT"
-            echo "emoji=:pull-request:" >> "$GITHUB_OUTPUT"
+            echo "emoji=:raised_hands:" >> "$GITHUB_OUTPUT"
           elif [ "$ACTION" = "closed" ] && [ "$MERGED" = "true" ]; then
             echo "label=PR Merged" >> "$GITHUB_OUTPUT"
-            echo "emoji=:merged:" >> "$GITHUB_OUTPUT"
+            echo "emoji=:handshake:" >> "$GITHUB_OUTPUT"
           else
             echo "label=PR Closed" >> "$GITHUB_OUTPUT"
-            echo "emoji=:closed:" >> "$GITHUB_OUTPUT"
+            echo "emoji=:no_entry_sign:" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Build and send Slack payload
