@@ -1,0 +1,45 @@
+[config]
+model = "gpt-4.1"
+
+[pr_description]
+publish_labels = true
+add_original_user_description = true
+generate_ai_title = false
+extra_instructions = """
+- Focus on what changed and why
+- Keep the summary concise but thorough
+- Highlight breaking changes prominently
+"""
+
+[pr_reviewer]
+require_focused_review = true
+require_score_review = true
+require_estimate_effort_to_review = true
+require_can_be_split_review = true
+require_security_review = true
+num_code_suggestions = 4
+extra_instructions = """
+- Be thorough but not nitpicky
+- Flag security issues, SQL injection, and authentication bypasses as critical
+- Check for proper error handling and edge cases
+- Verify Python best practices (type hints, docstrings on public APIs)
+- Flag any hardcoded secrets, API keys, or credentials
+- Check for proper use of async/await patterns
+- Ensure database queries are optimized (N+1 queries, missing indexes)
+- Verify proper input validation and sanitization
+"""
+
+[pr_code_suggestions]
+num_code_suggestions = 4
+extra_instructions = """
+- Suggest concrete code fixes, not vague advice
+- Focus on bugs, security, and performance over style
+- If suggesting a refactor, explain the benefit clearly
+"""
+
+[pr_improve]
+num_code_suggestions = 4
+extra_instructions = """
+- Prioritize suggestions by impact: security > bugs > performance > readability
+- Only suggest changes that meaningfully improve the code
+"""
