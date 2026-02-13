@@ -39,7 +39,7 @@ jobs:
                   type: "section",
                   text: {
                     type: "mrkdwn",
-                    text: (":arrow_right: *Love Backend* — Commit to `" + $branch + "`")
+                    text: (":arrow_right: *Love Server* — Commit to `" + $branch + "`")
                   }
                 },
                 {
@@ -110,7 +110,7 @@ jobs:
                   type: "section",
                   text: {
                     type: "mrkdwn",
-                    text: ($emoji + " *Love Backend* — " + $label)
+                    text: ($emoji + " *Love Server* — " + $label)
                   }
                 },
                 {
@@ -184,7 +184,7 @@ jobs:
                   type: "section",
                   text: {
                     type: "mrkdwn",
-                    text: ($emoji + " *Love Backend* — " + $label)
+                    text: ($emoji + " *Love Server* — " + $label)
                   }
                 },
                 {
