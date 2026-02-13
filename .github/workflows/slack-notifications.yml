@@ -1,0 +1,214 @@
+name: Slack Notifications
+
+on:
+  push:
+  pull_request:
+    types: [opened, closed]
+    branches: [main]
+  workflow_run:
+    workflows: ["CI/CD"]
+    types: [completed]
+    branches: [main]
+
+jobs:
+  notify-push:
+    name: Notify Push
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    steps:
+      - name: Build and send Slack payload
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_LOGS_URL }}
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+          COMMIT_URL: ${{ github.event.head_commit.url }}
+          FULL_SHA: ${{ github.sha }}
+          REF: ${{ github.ref }}
+        run: |
+          SHORT_SHA="${FULL_SHA:0:7}"
+          BRANCH="${REF#refs/heads/}"
+          FIRST_LINE=$(echo "$COMMIT_MESSAGE" | head -n 1)
+
+          PAYLOAD=$(jq -n \
+            --arg sha "$SHORT_SHA" \
+            --arg msg "$FIRST_LINE" \
+            --arg url "$COMMIT_URL" \
+            --arg branch "$BRANCH" \
+            '{
+              blocks: [
+                {
+                  type: "section",
+                  text: {
+                    type: "mrkdwn",
+                    text: (":arrow_right: *Love Server* — Commit to `" + $branch + "`")
+                  }
+                },
+                {
+                  type: "context",
+                  elements: [
+                    {
+                      type: "mrkdwn",
+                      text: ("*" + $sha + "* " + $msg)
+                    }
+                  ]
+                },
+                {
+                  type: "actions",
+                  elements: [
+                    {
+                      type: "button",
+                      text: { type: "plain_text", text: "View Commit" },
+                      url: $url
+                    }
+                  ]
+                }
+              ]
+            }')
+
+          curl -sf -X POST -H 'Content-type: application/json' \
+            --data "$PAYLOAD" "$SLACK_WEBHOOK_URL"
+
+  notify-pr:
+    name: Notify PR
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Determine action
+        id: meta
+        env:
+          ACTION: ${{ github.event.action }}
+          MERGED: ${{ github.event.pull_request.merged }}
+        run: |
+          if [ "$ACTION" = "opened" ]; then
+            echo "label=PR Opened" >> "$GITHUB_OUTPUT"
+            echo "emoji=:raised_hands:" >> "$GITHUB_OUTPUT"
+          elif [ "$ACTION" = "closed" ] && [ "$MERGED" = "true" ]; then
+            echo "label=PR Merged" >> "$GITHUB_OUTPUT"
+            echo "emoji=:handshake:" >> "$GITHUB_OUTPUT"
+          else
+            echo "label=PR Closed" >> "$GITHUB_OUTPUT"
+            echo "emoji=:no_entry_sign:" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build and send Slack payload
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_LOGS_URL }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          LABEL: ${{ steps.meta.outputs.label }}
+          EMOJI: ${{ steps.meta.outputs.emoji }}
+        run: |
+          PAYLOAD=$(jq -n \
+            --arg label "$LABEL" \
+            --arg emoji "$EMOJI" \
+            --arg pr_num "$PR_NUMBER" \
+            --arg pr_title "$PR_TITLE" \
+            --arg pr_url "$PR_URL" \
+            '{
+              blocks: [
+                {
+                  type: "section",
+                  text: {
+                    type: "mrkdwn",
+                    text: ($emoji + " *Love Server* — " + $label)
+                  }
+                },
+                {
+                  type: "context",
+                  elements: [
+                    {
+                      type: "mrkdwn",
+                      text: ("*#" + $pr_num + "* " + $pr_title)
+                    }
+                  ]
+                },
+                {
+                  type: "actions",
+                  elements: [
+                    {
+                      type: "button",
+                      text: { type: "plain_text", text: "View Pull Request" },
+                      url: $pr_url
+                    }
+                  ]
+                }
+              ]
+            }')
+
+          curl -sf -X POST -H 'Content-type: application/json' \
+            --data "$PAYLOAD" "$SLACK_WEBHOOK_URL"
+
+  notify-pipeline:
+    name: Notify Pipeline
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_run'
+    steps:
+      - name: Determine conclusion
+        id: meta
+        env:
+          CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+        run: |
+          if [ "$CONCLUSION" = "success" ]; then
+            echo "label=Pipeline Passed" >> "$GITHUB_OUTPUT"
+            echo "emoji=:white_check_mark:" >> "$GITHUB_OUTPUT"
+            echo "style=primary" >> "$GITHUB_OUTPUT"
+          else
+            echo "label=Pipeline Failed" >> "$GITHUB_OUTPUT"
+            echo "emoji=:x:" >> "$GITHUB_OUTPUT"
+            echo "style=danger" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build and send Slack payload
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_LOGS_URL }}
+          COMMIT_MESSAGE: ${{ github.event.workflow_run.head_commit.message }}
+          FULL_SHA: ${{ github.event.workflow_run.head_sha }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+          LABEL: ${{ steps.meta.outputs.label }}
+          EMOJI: ${{ steps.meta.outputs.emoji }}
+          STYLE: ${{ steps.meta.outputs.style }}
+        run: |
+          SHORT_SHA="${FULL_SHA:0:7}"
+          FIRST_LINE=$(echo "$COMMIT_MESSAGE" | head -n 1)
+
+          PAYLOAD=$(jq -n \
+            --arg label "$LABEL" \
+            --arg emoji "$EMOJI" \
+            --arg style "$STYLE" \
+            --arg sha "$SHORT_SHA" \
+            --arg msg "$FIRST_LINE" \
+            --arg url "$RUN_URL" \
+            '{
+              blocks: [
+                {
+                  type: "section",
+                  text: {
+                    type: "mrkdwn",
+                    text: ($emoji + " *Love Server* — " + $label)
+                  }
+                },
+                {
+                  type: "context",
+                  elements: [
+                    {
+                      type: "mrkdwn",
+                      text: ("*" + $sha + "* " + $msg)
+                    }
+                  ]
+                },
+                {
+                  type: "actions",
+                  elements: [
+                    {
+                      type: "button",
+                      text: { type: "plain_text", text: "View Run" },
+                      url: $url,
+                      style: $style
+                    }
+                  ]
+                }
+              ]
+            }')
+
+          curl -sf -X POST -H 'Content-type: application/json' \
+            --data "$PAYLOAD" "$SLACK_WEBHOOK_URL"
