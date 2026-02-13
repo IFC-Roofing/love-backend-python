@@ -80,6 +80,10 @@ app.include_router(api_router)
 async def health():
     return {"status": "ok"}
 
+@app.get("/")
+async def root():
+    return {"message": "Welcome to the Love Backend API!"}
+
 
 if __name__ == "__main__":
     uvicorn.run(
