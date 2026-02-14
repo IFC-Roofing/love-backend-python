@@ -1,0 +1,29 @@
+# Commented out until OPENAI_KEY is added to repo secrets.
+# Uncomment the entire file to enable LLM-powered code reviews.
+#
+# name: PR Agent
+#
+# on:
+#   pull_request:
+#     types: [opened, reopened, ready_for_review]
+#   issue_comment:
+#
+# jobs:
+#   pr-agent:
+#     name: AI Code Review
+#     runs-on: ubuntu-latest
+#     if: ${{ github.event.sender.type != 'Bot' }}
+#     permissions:
+#       issues: write
+#       pull-requests: write
+#       contents: read
+#     steps:
+#       - name: Run PR Agent
+#         uses: Codium-ai/pr-agent@main
+#         env:
+#           OPENAI_KEY: ${{ secrets.OPENAI_KEY }}
+#           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#           github_action_config.auto_review: "true"
+#           github_action_config.auto_describe: "true"
+#           github_action_config.auto_improve: "true"
+#           github_action_config.enable_output: "true"

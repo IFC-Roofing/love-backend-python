@@ -1,0 +1,29 @@
+name: Danger PR Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+
+jobs:
+  danger:
+    name: Danger
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Install and run Danger
+        run: |
+          npm init -y > /dev/null 2>&1
+          npm install --no-save danger typescript
+          npx danger ci
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
