@@ -2,7 +2,7 @@
 API Router - all endpoints.
 """
 from fastapi import APIRouter
-from app.router.api.v1 import auth, users, contacts, postcards
+from app.router.api.v1 import auth, users, contacts, postcards, mailings
 
 api_router = APIRouter(prefix="/api/v1")
 
@@ -28,4 +28,10 @@ api_router.include_router(
     postcards.router,
     prefix="/postcards",
     tags=["Postcards"],
+)
+
+api_router.include_router(
+    mailings.router,
+    prefix="/mailings",
+    tags=["Mailings"],
 )
