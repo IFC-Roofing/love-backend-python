@@ -27,6 +27,7 @@ class UserService:
             "id": str(user.id),
             "email": user.email,
             "is_active": user.is_active,
+            "profile_image_url": getattr(user, "profile_image_url", None),
             "created_at": user.created_at,
             "updated_at": user.updated_at,
         }

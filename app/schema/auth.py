@@ -44,6 +44,7 @@ class UserInfo(BaseModel):
     id: str
     email: str
     is_active: bool
+    profile_image_url: Optional[str] = None
 
 
 class UserProfile(UserInfo):
