@@ -22,6 +22,11 @@ class Postcard(Base):
     personal_message = Column(Text, nullable=True)
     qr_code_data = Column(String, nullable=True)
 
+    # Video postcards (DMM does not support video): thumbnail + QR pointing to direct S3 video URL
+    video_s3_url = Column(String, nullable=True)
+    video_thumbnail_path = Column(String, nullable=True)
+    video_qr_image_path = Column(String, nullable=True)
+
     # Originality: font color, font size, positions, etc. so frontend can replicate exactly
     design_metadata = Column(JSONB, nullable=True)
     # Technical image details (width, height, format, size_kb) per image

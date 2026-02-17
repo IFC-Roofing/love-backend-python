@@ -23,6 +23,7 @@ from app.schema.postcard import (
     PostcardResponse,
 )
 from app.utils.image_metadata import extract_media_metadata
+from app.utils.video_metadata import extract_video_thumbnail_frame
 from app.aws.s3 import upload_to_s3
 
 router = APIRouter()
@@ -148,6 +149,29 @@ async def create_postcard(
         front_image_path = os.path.join("postcards", str(postcard_id), f"front{front_ext}").replace("\\", "/")
         back_image_path = os.path.join("postcards", str(postcard_id), f"back{back_ext}").replace("\\", "/")
 
+    video_s3_url = None
+    video_thumbnail_path = None
+    if front_file.content_type and front_file.content_type.startswith("video/"):
+        video_s3_url = front_image_path
+        thumb_png = extract_video_thumbnail_frame(front_content, front_file.content_type)
+        if thumb_png and settings.use_s3:
+            thumb_key = f"postcards/{postcard_id}/video_thumbnail.png"
+            try:
+                video_thumbnail_path = upload_to_s3(
+                    key=thumb_key,
+                    body=thumb_png,
+                    content_type="image/png",
+                )
+            except Exception as e:
+                logger.warning("Failed to upload video thumbnail to S3: %s", e)
+        elif thumb_png and not settings.use_s3:
+            base_dir = os.path.join(settings.UPLOAD_DIR, "postcards", str(postcard_id))
+            _ensure_upload_dir(base_dir)
+            thumb_path = os.path.join(base_dir, "video_thumbnail.png")
+            with open(thumb_path, "wb") as f:
+                f.write(thumb_png)
+            video_thumbnail_path = os.path.join("postcards", str(postcard_id), "video_thumbnail.png").replace("\\", "/")
+
     obj_in = {
         "id": postcard_id,
         "user_id": user_id,
@@ -159,6 +183,10 @@ async def create_postcard(
         "design_metadata": payload.design_metadata,
         "image_metadata": image_metadata,
     }
+    if video_s3_url is not None:
+        obj_in["video_s3_url"] = video_s3_url
+    if video_thumbnail_path is not None:
+        obj_in["video_thumbnail_path"] = video_thumbnail_path
     postcard = postcard_crud.create_from_dict(db, obj_in=obj_in)
     return PostcardCreateResponse(message="Postcard sent successfully", postcard=postcard)
 

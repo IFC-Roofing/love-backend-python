@@ -2,12 +2,14 @@
 Mailings API: send postcards via DMM. Trigger send after postcard is created.
 """
 import logging
+import os
 import uuid
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.aws.s3 import upload_to_s3
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.dependencies import validate_session
@@ -15,6 +17,7 @@ from app.core.exceptions import NotFound
 from app.crud import contact_crud, mailing_crud, postcard_crud
 from app.dmm import build_front_html, build_back_html, dmm_client
 from app.dmm.address import normalize_state, parse_address_json
+from app.dmm.html import _is_video_url
 from app.dmm.client import DMMClientError
 from app.model.contact import Contact
 from app.model.postcard import Postcard
@@ -24,6 +27,7 @@ from app.schema.mailing import (
     MailingCreateResult,
     MailingResponse,
 )
+from app.utils.qr import generate_qr_png
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -80,8 +84,57 @@ def _parse_recipient_address(recipient_name: Optional[str], recipient_address: O
     }
 
 
-def _build_html_from_postcard(postcard: Postcard) -> tuple:
-    front_html = build_front_html(postcard.front_image_path)
+def _is_video_postcard(postcard: Postcard) -> bool:
+    """True if this postcard has video (front is video or video_s3_url set)."""
+    if getattr(postcard, "video_s3_url", None):
+        return True
+    return _is_video_url(postcard.front_image_path or "")
+
+
+def _ensure_video_qr(db: Session, postcard: Postcard) -> None:
+    """
+    For video postcards: ensure video_qr_image_path is set. QR encodes direct S3 video URL.
+    Generates QR PNG, uploads to S3 (or local), updates postcard.
+    """
+    video_url = getattr(postcard, "video_s3_url", None) or (
+        postcard.front_image_path if _is_video_url(postcard.front_image_path or "") else None
+    )
+    if not video_url or not getattr(postcard, "video_thumbnail_path", None):
+        return
+    if getattr(postcard, "video_qr_image_path", None):
+        return
+    qr_bytes = generate_qr_png(video_url)
+    if not qr_bytes:
+        return
+    if settings.use_s3:
+        key = f"postcards/{postcard.id}/video_qr.png"
+        try:
+            qr_url = upload_to_s3(key=key, body=qr_bytes, content_type="image/png")
+            postcard.video_qr_image_path = qr_url
+            db.add(postcard)
+            db.commit()
+            db.refresh(postcard)
+        except Exception as e:
+            logger.warning("Failed to upload video QR to S3: %s", e)
+    else:
+        base_dir = os.path.join(settings.UPLOAD_DIR, "postcards", str(postcard.id))
+        os.makedirs(base_dir, exist_ok=True)
+        qr_path = os.path.join(base_dir, "video_qr.png")
+        with open(qr_path, "wb") as f:
+            f.write(qr_bytes)
+        postcard.video_qr_image_path = os.path.join("postcards", str(postcard.id), "video_qr.png").replace("\\", "/")
+        db.add(postcard)
+        db.commit()
+        db.refresh(postcard)
+
+
+def _build_html_from_postcard(db: Session, postcard: Postcard) -> tuple:
+    _ensure_video_qr(db, postcard)
+    front_html = build_front_html(
+        postcard.front_image_path,
+        video_thumbnail_path=getattr(postcard, "video_thumbnail_path", None),
+        video_qr_image_path=getattr(postcard, "video_qr_image_path", None),
+    )
     back_html = build_back_html(
         postcard.back_image_path,
         personal_message=postcard.personal_message,
@@ -111,7 +164,7 @@ async def create_mailings(
     if not postcard:
         raise NotFound("Postcard")
 
-    front_html, back_html = _build_html_from_postcard(postcard)
+    front_html, back_html = _build_html_from_postcard(db, postcard)
     from_address = parse_address_json(settings.DMM_FROM_ADDRESS)
 
     results: List[MailingCreateResult] = []
@@ -240,7 +293,7 @@ async def create_mailings(
     )
 
 
-def _mailing_to_response(mailing) -> MailingResponse:
+def _mailing_to_response(db: Session, mailing) -> MailingResponse:
     """Build MailingResponse with front_artwork and back_artwork from postcard."""
     data = {
         "id": mailing.id,
@@ -256,7 +309,7 @@ def _mailing_to_response(mailing) -> MailingResponse:
         "back_artwork": None,
     }
     if mailing.postcard:
-        f, b = _build_html_from_postcard(mailing.postcard)
+        f, b = _build_html_from_postcard(db, mailing.postcard)
         data["front_artwork"] = f
         data["back_artwork"] = b
     return MailingResponse(**data)
@@ -276,7 +329,7 @@ async def list_mailings(
         limit = 20
     user_id = uuid.UUID(current_user["user_id"])
     items, _ = mailing_crud.list_by_user_paginated(db, user_id=user_id, page=page, limit=limit)
-    return [_mailing_to_response(m) for m in items]
+    return [_mailing_to_response(db, m) for m in items]
 
 
 @router.get("/{mailing_id}", response_model=MailingResponse)
@@ -290,7 +343,7 @@ async def get_mailing(
     mailing = mailing_crud.get_by_user_and_id(db, user_id=user_id, mailing_id=mailing_id)
     if not mailing:
         raise NotFound("Mailing")
-    return _mailing_to_response(mailing)
+    return _mailing_to_response(db, mailing)
 
 
 @router.post("/sync-status", status_code=status.HTTP_200_OK)

@@ -1,15 +1,21 @@
 """
 Extract video metadata (width, height, duration, format, size_kb) for postcard media.
 Uses opencv (cv2) when available; otherwise returns size-only fallback.
+Also supports extracting first frame as PNG for video thumbnail.
 """
 import os
 import tempfile
-from typing import Any, Dict
+from io import BytesIO
+from typing import Any, Dict, Optional
 
 try:
     import cv2
 except ImportError:
     cv2 = None  # type: ignore
+try:
+    from PIL import Image
+except ImportError:
+    Image = None  # type: ignore
 
 
 def extract_video_metadata(content: bytes, content_type: str) -> Dict[str, Any]:
@@ -90,3 +96,38 @@ def _suffix_from_content_type(content_type: str) -> str:
     if content_type and ("quicktime" in content_type or "mov" in content_type):
         return ".mov"
     return ".mp4"
+
+
+def extract_video_thumbnail_frame(content: bytes, content_type: str) -> Optional[bytes]:
+    """
+    Extract the first frame of a video as PNG bytes for use as a static thumbnail.
+    Returns None if opencv/PIL unavailable or extraction fails.
+    """
+    if cv2 is None or Image is None:
+        return None
+    suffix = _suffix_from_content_type(content_type)
+    try:
+        with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as f:
+            f.write(content)
+            path = f.name
+        try:
+            cap = cv2.VideoCapture(path)
+            try:
+                ret, frame = cap.read()
+                if not ret or frame is None:
+                    return None
+                frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                pil_img = Image.fromarray(frame_rgb)
+                buf = BytesIO()
+                pil_img.save(buf, format="PNG")
+                return buf.getvalue()
+            finally:
+                cap.release()
+        finally:
+            try:
+                os.unlink(path)
+            except OSError:
+                pass
+    except Exception:
+        pass
+    return None
