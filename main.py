@@ -44,7 +44,7 @@ async def lifespan(app: FastAPI):
         # Auto-create tables in debug mode (use Alembic migrations in production)
         if settings.DEBUG:
             from app.core.database import Base
-            from app.model import User, Contact, Postcard, Mailing
+            from app.model import User, Contact, Postcard, Mailing, ChatRoom, ChatParticipant, ChatMessage
             Base.metadata.create_all(bind=engine)
             logger.info("Database tables created (DEBUG mode)")
     except Exception as e:
