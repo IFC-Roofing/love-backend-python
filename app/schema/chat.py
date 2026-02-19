@@ -9,6 +9,19 @@ from pydantic import BaseModel, Field
 
 # --- Room ---
 
+
+class LinkedContactDetail(BaseModel):
+    """Contact details when room is linked to a contact (contact_id set)."""
+    id: uuid.UUID
+    name: Optional[str] = None
+    email: str
+    phone_number: Optional[str] = None
+    profile_image_url: Optional[str] = None  # Optional; Contact model has no image field yet
+
+    class Config:
+        from_attributes = True
+
+
 class RoomCreateBody(BaseModel):
     """Body for POST /chat/rooms (create or get direct room)."""
     other_user_id: Optional[uuid.UUID] = None
@@ -25,6 +38,7 @@ class RoomResponse(BaseModel):
     created_at: datetime
     unread_count: Optional[int] = None
     other_participants: Optional[List[Dict[str, Any]]] = None
+    linked_contact: Optional["LinkedContactDetail"] = None
 
     class Config:
         from_attributes = True
@@ -49,6 +63,7 @@ class RoomListItem(BaseModel):
     unread_count: int = 0
     last_message_preview: Optional[LastMessagePreview] = None
     other_participants: Optional[List[Dict[str, Any]]] = None
+    linked_contact: Optional["LinkedContactDetail"] = None
 
     class Config:
         from_attributes = True

@@ -19,9 +19,12 @@ from app.crud import (
     contact_crud,
 )
 from app.model.chat_message import ChatMessage
+from app.model.chat_participant import ChatParticipant
 from app.model.chat_room import ChatRoom
+from app.model.user import User
 from app.schema.chat import (
     LastMessagePreview,
+    LinkedContactDetail,
     MessageCreateBody,
     MessageListResponse,
     MessageResponse,
@@ -57,6 +60,26 @@ def _other_participants_summary(db: Session, room_id: uuid.UUID, exclude_user_id
         {"user_id": str(p.user_id), "email": p.user.email if p.user else None}
         for p in others
     ]
+
+
+def _linked_contact_for_room(
+    db: Session, room: ChatRoom, user_id: uuid.UUID
+) -> Optional[LinkedContactDetail]:
+    """Build LinkedContactDetail when room has contact_id; else None."""
+    if not room.contact_id:
+        return None
+    contact = contact_crud.get_by_user_and_id(
+        db, user_id=user_id, contact_id=room.contact_id
+    )
+    if not contact:
+        return None
+    return LinkedContactDetail(
+        id=contact.id,
+        name=contact.name,
+        email=contact.email,
+        phone_number=contact.phone_number,
+        profile_image_url=getattr(contact, "profile_image_url", None),
+    )
 
 
 # --- REST: Rooms ---
@@ -110,6 +133,7 @@ async def list_rooms(
                 unread_count=unread,
                 last_message_preview=preview,
                 other_participants=_other_participants_summary(db, room.id, user_id),
+                linked_contact=_linked_contact_for_room(db, room, user_id),
             )
         )
     total_pages = (total + limit - 1) // limit if total else 0
@@ -132,8 +156,6 @@ async def create_or_get_room(
     user_id = uuid.UUID(current_user["user_id"])
     if body.other_user_id:
         # Find existing room that has exactly [user_id, other_user_id] as participants
-        from app.model.chat_participant import ChatParticipant
-        from app.model.user import User
         other_id = body.other_user_id
         if other_id == user_id:
             raise HTTPException(
@@ -168,6 +190,7 @@ async def create_or_get_room(
                     created_at=room.created_at,
                     unread_count=part.unread_count if part else 0,
                     other_participants=_other_participants_summary(db, room.id, user_id),
+                    linked_contact=_linked_contact_for_room(db, room, user_id),
                 )
         # Create new room with two participants
         room = chat_room_crud.create_from_dict(
@@ -191,6 +214,7 @@ async def create_or_get_room(
             created_at=room.created_at,
             unread_count=0,
             other_participants=_other_participants_summary(db, room.id, user_id),
+            linked_contact=_linked_contact_for_room(db, room, user_id),
         )
     if body.contact_id:
         contact = contact_crud.get_by_user_and_id(db, user_id=user_id, contact_id=body.contact_id)
@@ -202,7 +226,6 @@ async def create_or_get_room(
             .filter(ChatParticipant.user_id == user_id)
             .all()
         )
-        from app.model.chat_participant import ChatParticipant
         for (rid,) in my_participations:
             room = chat_room_crud.get_by_id(db, room_id=rid)
             if room and room.contact_id == body.contact_id:
@@ -216,6 +239,7 @@ async def create_or_get_room(
                     created_at=room.created_at,
                     unread_count=part.unread_count if part else 0,
                     other_participants=[],
+                    linked_contact=_linked_contact_for_room(db, room, user_id),
                 )
         room = chat_room_crud.create_from_dict(
             db,
@@ -234,6 +258,7 @@ async def create_or_get_room(
             created_at=room.created_at,
             unread_count=0,
             other_participants=[],
+            linked_contact=_linked_contact_for_room(db, room, user_id),
         )
     raise HTTPException(
         status_code=status.HTTP_400_BAD_REQUEST,
@@ -264,6 +289,7 @@ async def get_room(
         created_at=room.created_at,
         unread_count=part.unread_count,
         other_participants=_other_participants_summary(db, room.id, user_id),
+        linked_contact=_linked_contact_for_room(db, room, user_id),
     )
 
 
