@@ -18,6 +18,9 @@ redis>=5.0.0
 python-dotenv>=1.0.0
 pydantic-settings>=2.6.0
 
+# Plat API sync (scripts/sync_plat_contacts.py)
+requests>=2.31.0
+
 # Media metadata (postcards: images + videos)
 Pillow>=10.0.0
 opencv-python-headless>=4.8.0

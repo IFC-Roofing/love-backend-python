@@ -75,34 +75,38 @@ def upgrade() -> None:
     if not _column_exists(conn, "contacts", "phone_number"):
         op.add_column("contacts", sa.Column("phone_number", sa.String(), nullable=True))
 
-    for c in CONTACTS:
-        if _contact_exists(conn, SEED_USER_ID, c["email"]):
-            continue
-        conn.execute(
-            text("""
-                INSERT INTO contacts (id, user_id, email, phone_number, name, address_line1, city, state, postal_code, country)
-                VALUES (gen_random_uuid(), :uid, :email, :phone_number, :name, :address_line1, :city, :state, :postal_code, :country)
-            """),
-            {
-                "uid": SEED_USER_ID,
-                "email": c["email"],
-                "phone_number": c["phone_number"],
-                "name": c["name"],
-                "address_line1": c["address_line1"],
-                "city": c["city"],
-                "state": c["state"],
-                "postal_code": c["postal_code"],
-                "country": c["country"],
-            },
-        )
+    # Seed these contacts for every current user (works in prod: all existing users get the contacts)
+    user_ids = _get_all_user_ids(conn)
+    for uid in user_ids:
+        for c in CONTACTS:
+            if _contact_exists(conn, uid, c["email"]):
+                continue
+            conn.execute(
+                text("""
+                    INSERT INTO contacts (id, user_id, email, phone_number, name, address_line1, city, state, postal_code, country)
+                    VALUES (gen_random_uuid(), :uid, :email, :phone_number, :name, :address_line1, :city, :state, :postal_code, :country)
+                """),
+                {
+                    "uid": uid,
+                    "email": c["email"],
+                    "phone_number": c["phone_number"],
+                    "name": c["name"],
+                    "address_line1": c["address_line1"],
+                    "city": c["city"],
+                    "state": c["state"],
+                    "postal_code": c["postal_code"],
+                    "country": c["country"],
+                },
+            )
 
 
 def downgrade() -> None:
     conn = op.get_bind()
+    # Remove seed contacts by email (removes from all users)
     for c in CONTACTS:
         conn.execute(
-            text("DELETE FROM contacts WHERE user_id = :uid AND email = :email"),
-            {"uid": SEED_USER_ID, "email": c["email"]},
+            text("DELETE FROM contacts WHERE email = :email"),
+            {"email": c["email"]},
         )
     if _column_exists(conn, "contacts", "phone_number"):
         op.drop_column("contacts", "phone_number")

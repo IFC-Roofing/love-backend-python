@@ -30,6 +30,14 @@ CONTACT = {
 }
 
 
+def _user_exists(conn, user_id: str) -> bool:
+    r = conn.execute(
+        text("SELECT 1 FROM users WHERE id = :uid LIMIT 1"),
+        {"uid": user_id},
+    )
+    return r.scalar() is not None
+
+
 def _contact_exists(conn, user_id: str, email: str) -> bool:
     r = conn.execute(
         text("SELECT 1 FROM contacts WHERE user_id = :uid AND email = :email LIMIT 1"),
@@ -40,6 +48,9 @@ def _contact_exists(conn, user_id: str, email: str) -> bool:
 
 def upgrade() -> None:
     conn = op.get_bind()
+    # Only insert if seed user exists (e.g. dev); skip in production if user not present
+    if not _user_exists(conn, SEED_USER_ID):
+        return
     if _contact_exists(conn, SEED_USER_ID, CONTACT["email"]):
         return
     conn.execute(

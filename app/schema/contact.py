@@ -2,8 +2,8 @@
 Contact schemas.
 """
 import uuid
-from typing import Optional
-from pydantic import BaseModel
+from typing import List, Optional
+from pydantic import BaseModel, Field
 
 
 class ContactResponse(BaseModel):
@@ -21,3 +21,11 @@ class ContactResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class ContactListResponse(BaseModel):
+    """Paginated list of contacts with metadata."""
+    contacts: List[ContactResponse]
+    total: int = Field(..., description="Total number of contacts matching the filters")
+    limit: int = Field(..., description="Page size (limit)")
+    offset: int = Field(..., description="Number of contacts skipped")
