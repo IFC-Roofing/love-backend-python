@@ -9,11 +9,14 @@ from typing import Optional
 VIDEO_EXTENSIONS = (".mp4", ".webm", ".mov")
 
 
-def _wrap_valid_html(body_content: str) -> str:
+def _wrap_valid_html(body_content: str, body_style: Optional[str] = None) -> str:
     """Wrap fragment in minimal valid HTML5 document so DMM accepts it."""
+    style = body_style or ""
     return (
         "<!DOCTYPE html>\n"
-        "<html><head><meta charset=\"UTF-8\"></head><body>"
+        "<html><head><meta charset=\"UTF-8\"></head><body"
+        + (f' style="{style}"' if style else "")
+        + ">"
         f"{body_content}"
         "</body></html>"
     )
@@ -67,18 +70,46 @@ def build_back_html(
     personal_message: Optional[str] = None,
     qr_code_data: Optional[str] = None,
 ) -> str:
+    """
+    Build back HTML for DMM. Back image fills the card; personal message is a strip
+    at the bottom (position:absolute) so it always appears and is visible.
+    DMM receives HTML and renders it; we use a fixed 4x6 card and explicit text color.
+    """
     url = (back_image_path or "").strip()
-    parts = []
-    # DMM does not support video; show placeholder if back is video
+    has_message = bool((personal_message or "").strip() or (qr_code_data or "").strip())
+
     if _is_video_url(url):
-        parts.append(
+        content = (
             '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:#eee;">'
             '<p style="margin:0;">Video on front – scan QR to watch</p></div>'
         )
+    elif has_message:
+        # Image fills card; message strip at bottom (absolute) so it's always on-card and visible
+        msg_parts = []
+        if (personal_message or "").strip():
+            msg_parts.append(
+                f'<div style="white-space:pre-wrap;word-break:break-word;">{html.escape(personal_message.strip())}</div>'
+            )
+        if (qr_code_data or "").strip():
+            msg_parts.append(
+                f'<div style="font-size:10px;margin-top:4px;">QR: {html.escape(qr_code_data.strip())}</div>'
+            )
+        message_strip = (
+            '<div style="position:absolute;bottom:0;left:0;right:0;padding:8px;font-size:12px;line-height:1.3;'
+            'background:#ffffff;color:#111111;box-sizing:border-box;">'
+            + "".join(msg_parts)
+            + "</div>"
+        )
+        content = (
+            '<div style="position:relative;width:100%;height:100%;">'
+            f'<img src="{html.escape(url)}" style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;display:block;" alt="Back" />'
+            + message_strip
+            + "</div>"
+        )
+        return _wrap_valid_html(
+            content,
+            body_style="margin:0;padding:0;width:4in;height:6in;overflow:hidden;box-sizing:border-box;",
+        )
     else:
-        parts.append(f'<div style="width:100%;height:100%;"><img src="{html.escape(url)}" style="width:100%;height:100%;object-fit:cover;" alt="Back" /></div>')
-    if personal_message:
-        parts.append(f'<div style="margin-top:8px;white-space:pre-wrap;">{html.escape(personal_message)}</div>')
-    if qr_code_data:
-        parts.append(f'<div style="margin-top:8px;font-size:10px;">QR: {html.escape(qr_code_data)}</div>')
-    return _wrap_valid_html("".join(parts))
+        content = f'<div style="width:100%;height:100%;"><img src="{html.escape(url)}" style="width:100%;height:100%;object-fit:cover;" alt="Back" /></div>'
+    return _wrap_valid_html(content)
