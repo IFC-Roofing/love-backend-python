@@ -1,25 +1,25 @@
-"""add contact phone_number and seed three contacts for user
+"""Seed all contacts for every user (idempotent, prod-safe)
 
-Revision ID: a78901234567
-Revises: f67890123456
-Create Date: 2026-02-16
+Run after all schema migrations. Ensures every existing user has the full set of
+seed contacts. Safe to run on empty or already-seeded DB; skips existing rows.
+
+Revision ID: j01234567890
+Revises: i90123456789
+Create Date: 2026-02-20
 
 """
 from typing import Sequence, Union
 
 from alembic import op
-import sqlalchemy as sa
 from sqlalchemy import text
 
-revision: str = "a78901234567"
-down_revision: Union[str, None] = "f67890123456"
+revision: str = "j01234567890"
+down_revision: Union[str, None] = "i90123456789"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
-SEED_USER_ID = "df8e2c7d-0225-4ac0-b9c9-65cf422860f3"
-
-# Three contacts for the seed user (street_address_1 -> address_line1, country = US)
-CONTACTS = [
+# Full set of seed contacts for every user (prod + dev). Insert only if missing per (user_id, email).
+SEED_CONTACTS = [
     {
         "name": "Jennifer Jaeger",
         "email": "jhowittpitt@hotmail.com",
@@ -50,15 +50,23 @@ CONTACTS = [
         "postal_code": "76051",
         "country": "US",
     },
+    {
+        "name": "Sheryl May",
+        "email": "sheryl@ifcroofing.com",
+        "phone_number": None,
+        "address_line1": "5115 Colleyville Boulevard",
+        "city": "Colleyville",
+        "state": "TX",
+        "postal_code": "76034",
+        "country": "US",
+    },
 ]
 
 
-def _column_exists(conn, table: str, column: str) -> bool:
-    r = conn.execute(
-        text("SELECT 1 FROM information_schema.columns WHERE table_name = :t AND column_name = :c"),
-        {"t": table, "c": column},
-    )
-    return r.scalar() is not None
+def _get_all_user_ids(conn) -> list:
+    """Return list of user id strings (UUIDs) for every user in users table."""
+    r = conn.execute(text("SELECT id FROM users"))
+    return [str(row[0]) for row in r.fetchall()]
 
 
 def _contact_exists(conn, user_id: str, email: str) -> bool:
@@ -69,22 +77,10 @@ def _contact_exists(conn, user_id: str, email: str) -> bool:
     return r.scalar() is not None
 
 
-def _get_all_user_ids(conn):
-    """Return list of user id strings for every user in users table."""
-    r = conn.execute(text("SELECT id FROM users"))
-    return [str(row[0]) for row in r.fetchall()]
-
-
 def upgrade() -> None:
     conn = op.get_bind()
-
-    if not _column_exists(conn, "contacts", "phone_number"):
-        op.add_column("contacts", sa.Column("phone_number", sa.String(), nullable=True))
-
-    # Seed these contacts for every current user (works in prod: all existing users get the contacts)
-    user_ids = _get_all_user_ids(conn)
-    for uid in user_ids:
-        for c in CONTACTS:
+    for uid in _get_all_user_ids(conn):
+        for c in SEED_CONTACTS:
             if _contact_exists(conn, uid, c["email"]):
                 continue
             conn.execute(
@@ -108,11 +104,5 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     conn = op.get_bind()
-    # Remove seed contacts by email (removes from all users)
-    for c in CONTACTS:
-        conn.execute(
-            text("DELETE FROM contacts WHERE email = :email"),
-            {"email": c["email"]},
-        )
-    if _column_exists(conn, "contacts", "phone_number"):
-        op.drop_column("contacts", "phone_number")
+    for c in SEED_CONTACTS:
+        conn.execute(text("DELETE FROM contacts WHERE email = :email"), {"email": c["email"]})
