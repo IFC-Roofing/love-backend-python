@@ -5,6 +5,7 @@ import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 from app.core.config import settings
@@ -44,7 +45,7 @@ async def lifespan(app: FastAPI):
         # Auto-create tables in debug mode (use Alembic migrations in production)
         if settings.DEBUG:
             from app.core.database import Base
-            from app.model import User, Contact, Postcard
+            from app.model import User, Contact, Postcard, Mailing, ChatRoom, ChatParticipant, ChatMessage
             Base.metadata.create_all(bind=engine)
             logger.info("Database tables created (DEBUG mode)")
     except Exception as e:
@@ -76,6 +77,38 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Exception handlers: consistent JSON and status codes (register specific before generic)
+async def _dmm_error_handler(request, exc):
+    """Return 502/503 with structured body for DMM client errors."""
+    status = 503 if getattr(exc, "status_code", None) in (503, 502, 500) else 502
+    return JSONResponse(
+        status_code=status,
+        content={
+            "code": "SERVICE_ERROR",
+            "message": str(exc) or "External mailing service error.",
+        },
+    )
+
+
+try:
+    from app.dmm.client import DMMClientError
+    app.add_exception_handler(DMMClientError, _dmm_error_handler)
+except ImportError:
+    pass
+
+
+@app.exception_handler(Exception)
+async def uncaught_exception_handler(request, exc: Exception):
+    """Return 500 with structured body for any uncaught exception."""
+    logger.exception("Uncaught exception: %s", exc)
+    return JSONResponse(
+        status_code=500,
+        content={
+            "code": "INTERNAL_ERROR",
+            "message": "An unexpected error occurred. Please try again.",
+        },
+    )
 
 # Routes
 app.include_router(api_router)

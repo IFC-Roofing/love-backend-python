@@ -31,6 +31,8 @@ class PostcardCreate(BaseModel):
     back_image_path: str
     personal_message: Optional[str] = None
     qr_code_data: Optional[str] = None
+    video_s3_url: Optional[str] = None
+    video_thumbnail_path: Optional[str] = None
     design_metadata: Optional[Dict[str, Any]] = None
     image_metadata: Optional[Dict[str, Any]] = None
 
@@ -44,6 +46,9 @@ class PostcardResponse(BaseModel):
     back_image_path: str
     personal_message: Optional[str] = None
     qr_code_data: Optional[str] = None
+    video_s3_url: Optional[str] = None
+    video_thumbnail_path: Optional[str] = None
+    video_qr_image_path: Optional[str] = None
     design_metadata: Optional[Dict[str, Any]] = None
     image_metadata: Optional[Dict[str, Any]] = None
     created_at: datetime
@@ -61,6 +66,9 @@ class PostcardListItem(BaseModel):
     back_image_path: str
     personal_message: Optional[str] = None
     qr_code_data: Optional[str] = None
+    video_s3_url: Optional[str] = None
+    video_thumbnail_path: Optional[str] = None
+    video_qr_image_path: Optional[str] = None
     created_at: datetime
 
     class Config:

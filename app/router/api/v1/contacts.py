@@ -38,4 +38,4 @@ async def get_contact(
     contact = contact_crud.get_by_user_and_id(db, user_id=user_id, contact_id=contact_id)
     if not contact:
         raise NotFound("Contact")
-    return contact
+    return ContactResponse.model_validate(contact)

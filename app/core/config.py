@@ -33,6 +33,12 @@ class Settings(BaseSettings):
     S3_BUCKET_NAME: Optional[str] = None
     S3_REGION: Optional[str] = None  # defaults to AWS_REGION
 
+    # Direct Mail Manager (physical postcard mailing). Set in .env.
+    DIRECT_MAIL_MANAGER_API_URL: Optional[str] = None
+    DIRECT_MAIL_MANAGER_API_KEY: Optional[str] = None
+    DMM_FROM_ADDRESS: Optional[str] = None
+    DMM_SENDER_COPY_ADDRESS: Optional[str] = None
+
     # Optional
     DEBUG: bool = False
     PROJECT_NAME: str = "Love Backend"
@@ -44,6 +50,10 @@ class Settings(BaseSettings):
     @property
     def use_s3(self) -> bool:
         return bool(self.S3_BUCKET_NAME)
+
+    @property
+    def use_dmm(self) -> bool:
+        return bool(self.DIRECT_MAIL_MANAGER_API_URL and self.DIRECT_MAIL_MANAGER_API_KEY)
 
     @property
     def s3_region(self) -> str:

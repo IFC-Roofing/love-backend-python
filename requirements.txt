@@ -21,6 +21,7 @@ pydantic-settings>=2.6.0
 # Media metadata (postcards: images + videos)
 Pillow>=10.0.0
 opencv-python-headless>=4.8.0
+qrcode[pil]>=7.4.0
 
 # Testing
 httpx>=0.25.0
