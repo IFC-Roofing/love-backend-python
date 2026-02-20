@@ -1,6 +1,7 @@
 """
 Chat API: rooms and messages (REST). WebSocket in same module.
 """
+import json
 import logging
 import uuid
 from typing import Any, Dict, List, Optional
@@ -305,6 +306,10 @@ async def list_messages(
     before_id: Optional[uuid.UUID] = None,
 ):
     """Paginated messages for a room. Marks room as read for current user."""
+    if page < 1:
+        page = 1
+    if limit < 1 or limit > 100:
+        limit = 50
     user_id = uuid.UUID(current_user["user_id"])
     part = chat_participant_crud.get_by_room_and_user(db, room_id=room_id, user_id=user_id)
     if not part:
@@ -338,23 +343,44 @@ async def create_message(
     room = chat_room_crud.get_by_id(db, room_id=room_id)
     if not room:
         raise NotFound("Room")
+    content = body.content.strip()
+    if not content:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": "EMPTY_CONTENT", "message": "Message content cannot be empty or whitespace only."},
+        )
+    if body.quote_id:
+        quoted = chat_message_crud.get_by_id(db, message_id=body.quote_id)
+        if not quoted or quoted.room_id != room_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={"code": "INVALID_QUOTE", "message": "Quoted message must exist and belong to this room."},
+            )
     from datetime import datetime, timezone
-    from app.model.chat_room import ChatRoom
-    msg = chat_message_crud.create_from_dict(
-        db,
-        obj_in={
-            "room_id": room_id,
-            "user_id": user_id,
-            "content": body.content.strip(),
-            "quote_id": body.quote_id,
-        },
-    )
-    room.last_message_at = datetime.now(timezone.utc)
-    db.add(room)
-    chat_participant_crud.increment_unread_for_others(db, room_id=room_id, exclude_user_id=user_id)
-    db.commit()
-    db.refresh(msg)
-    db.refresh(room)
+    from sqlalchemy.exc import SQLAlchemyError
+    try:
+        msg = chat_message_crud.create_from_dict(
+            db,
+            obj_in={
+                "room_id": room_id,
+                "user_id": user_id,
+                "content": content,
+                "quote_id": body.quote_id,
+            },
+        )
+        room.last_message_at = datetime.now(timezone.utc)
+        db.add(room)
+        chat_participant_crud.increment_unread_for_others(db, room_id=room_id, exclude_user_id=user_id)
+        db.commit()
+        db.refresh(msg)
+        db.refresh(room)
+    except SQLAlchemyError as e:
+        db.rollback()
+        logger.exception("Failed to save chat message: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={"code": "SERVICE_ERROR", "message": "Failed to save message. Please try again."},
+        )
     payload = _message_to_payload(msg)
     connection_manager.broadcast_to_room_sync(room_id, "message_created", payload)
     return MessageResponse.model_validate(msg)
@@ -379,46 +405,62 @@ async def websocket_chat(
         await websocket.close(code=4001)
         return
     user_id = uuid.UUID(user_id)
+    async def send_error(code: str, message: str) -> None:
+        try:
+            await websocket.send_text(
+                json.dumps({"event": "error", "code": code, "message": message})
+            )
+        except Exception:
+            pass
+
     subscribed: set = set()
     try:
         while True:
             data = await websocket.receive_text()
             try:
-                import json
                 obj = json.loads(data)
-                action = obj.get("action")
-                room_id_str = obj.get("room_id")
-                if not room_id_str:
-                    continue
-                try:
-                    room_id = uuid.UUID(room_id_str)
-                except ValueError:
-                    continue
-                db = SessionLocal()
-                try:
-                    part = chat_participant_crud.get_by_room_and_user(
-                        db, room_id=room_id, user_id=user_id
-                    )
-                finally:
-                    db.close()
-                if not part:
-                    continue
-                if action == "subscribe":
-                    await connection_manager.subscribe(websocket, room_id)
-                    subscribed.add(room_id)
-                elif action == "unsubscribe":
-                    await connection_manager.unsubscribe(websocket, room_id)
-                    subscribed.discard(room_id)
-                elif action == "typing":
-                    typing = obj.get("typing", False)
-                    await connection_manager.broadcast_to_room(
-                        room_id,
-                        "user_typing",
-                        {"user_id": str(user_id), "typing": typing},
-                        exclude_websocket=websocket,
-                    )
             except json.JSONDecodeError:
-                pass
+                await send_error("INVALID_JSON", "Request body must be valid JSON.")
+                continue
+            action = obj.get("action")
+            room_id_str = obj.get("room_id")
+            if not room_id_str:
+                await send_error("MISSING_ROOM_ID", "Missing required field: room_id.")
+                continue
+            try:
+                room_id = uuid.UUID(room_id_str)
+            except (ValueError, TypeError):
+                await send_error("INVALID_ROOM_ID", "room_id must be a valid UUID.")
+                continue
+            db = SessionLocal()
+            try:
+                part = chat_participant_crud.get_by_room_and_user(
+                    db, room_id=room_id, user_id=user_id
+                )
+            finally:
+                db.close()
+            if not part:
+                await send_error("FORBIDDEN", "You are not a participant of this room.")
+                continue
+            if action == "subscribe":
+                await connection_manager.subscribe(websocket, room_id)
+                subscribed.add(room_id)
+            elif action == "unsubscribe":
+                await connection_manager.unsubscribe(websocket, room_id)
+                subscribed.discard(room_id)
+            elif action == "typing":
+                typing = obj.get("typing", False)
+                await connection_manager.broadcast_to_room(
+                    room_id,
+                    "user_typing",
+                    {"user_id": str(user_id), "typing": typing},
+                    exclude_websocket=websocket,
+                )
+            else:
+                await send_error(
+                    "UNKNOWN_ACTION",
+                    "Expected action: subscribe, unsubscribe, or typing.",
+                )
     except Exception as e:
         logger.warning("WebSocket closed: %s", e)
     finally:

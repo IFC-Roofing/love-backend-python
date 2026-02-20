@@ -82,7 +82,7 @@ class RoomListResponse(BaseModel):
 
 class MessageCreateBody(BaseModel):
     """Body for POST /chat/rooms/{room_id}/messages."""
-    content: str
+    content: str = Field(..., min_length=1, max_length=10_000)
     quote_id: Optional[uuid.UUID] = None
 
 
