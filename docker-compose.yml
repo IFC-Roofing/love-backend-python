@@ -47,5 +47,20 @@ services:
     depends_on:
       - postgres
 
+  # Sync contacts from Plat API. Only runs when you run: docker compose --profile sync run --rm sync-plat (not on docker compose up)
+  # Requires PLAT_API_URL, PLAT_API_TOKEN in .env.docker (user = mair@ifcroofing.com if PLAT_SYNC_USER_ID unset)
+  sync-plat:
+    build: .
+    restart: "no"
+    env_file: .env.docker
+    profiles:
+      - sync
+    volumes:
+      - .:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["python", "-m", "scripts.sync_plat_contacts"]
+
 volumes:
   pgdata:

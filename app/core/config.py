@@ -47,6 +47,11 @@ class Settings(BaseSettings):
     # Local uploads fallback when S3_BUCKET_NAME is not set
     UPLOAD_DIR: str = "uploads"
 
+    # Plat API (Rails) – for contact sync script
+    PLAT_API_URL: Optional[str] = None  # e.g. http://localhost:3000 or http://host.docker.internal:3000
+    PLAT_API_TOKEN: Optional[str] = None
+    PLAT_SYNC_USER_ID: Optional[str] = None  # Our backend user UUID that will own synced contacts
+
     @property
     def use_s3(self) -> bool:
         return bool(self.S3_BUCKET_NAME)
