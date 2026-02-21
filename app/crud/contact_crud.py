@@ -33,6 +33,19 @@ class CRUDContact(CRUDBase[Contact, dict, dict]):
             .first()
         )
 
+    def get_by_user_and_name(
+        self, db: Session, *, user_id: uuid.UUID, name: str
+    ) -> Optional[Contact]:
+        """Get a contact by user and name (case-insensitive, trimmed). For sync dedup."""
+        if not (name or "").strip():
+            return None
+        n = name.strip().lower()
+        return (
+            db.query(self.model)
+            .filter(self.model.user_id == user_id, func.lower(self.model.name) == n)
+            .first()
+        )
+
     def list_by_user(self, db: Session, *, user_id: uuid.UUID) -> List[Contact]:
         """List all contacts for a user."""
         return db.query(self.model).filter(self.model.user_id == user_id).all()
