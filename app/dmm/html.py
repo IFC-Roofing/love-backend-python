@@ -67,18 +67,34 @@ def build_back_html(
     personal_message: Optional[str] = None,
     qr_code_data: Optional[str] = None,
 ) -> str:
+    """Build back HTML for DMM. Image fills card; personal message in an inset overlay on top."""
     url = (back_image_path or "").strip()
-    parts = []
-    # DMM does not support video; show placeholder if back is video
+    parts = ['<div style="position:relative;width:100%;height:100%;overflow:hidden;">']
+
     if _is_video_url(url):
         parts.append(
             '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:#eee;">'
             '<p style="margin:0;">Video on front – scan QR to watch</p></div>'
         )
     else:
-        parts.append(f'<div style="width:100%;height:100%;"><img src="{html.escape(url)}" style="width:100%;height:100%;object-fit:cover;" alt="Back" /></div>')
-    if personal_message:
-        parts.append(f'<div style="margin-top:8px;white-space:pre-wrap;">{html.escape(personal_message)}</div>')
-    if qr_code_data:
-        parts.append(f'<div style="margin-top:8px;font-size:10px;">QR: {html.escape(qr_code_data)}</div>')
+        parts.append(
+            f'<img src="{html.escape(url)}" style="width:100%;height:100%;object-fit:cover;display:block;" alt="Back" />'
+        )
+
+    if (personal_message or "").strip() or (qr_code_data or "").strip():
+        parts.append(
+            '<div style="position:absolute;bottom:20px;left:20px;right:20px;'
+            'background:rgba(255,255,255,0.8);padding:10px;border-radius:8px;">'
+        )
+        if (personal_message or "").strip():
+            parts.append(
+                f'<div style="white-space:pre-wrap;font-size:14px;color:#000;">{html.escape(personal_message.strip())}</div>'
+            )
+        if (qr_code_data or "").strip():
+            parts.append(
+                f'<div style="margin-top:8px;font-size:10px;color:#333;">QR: {html.escape(qr_code_data.strip())}</div>'
+            )
+        parts.append('</div>')
+
+    parts.append('</div>')
     return _wrap_valid_html("".join(parts))
